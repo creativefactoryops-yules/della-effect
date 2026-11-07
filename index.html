@@ -386,12 +386,20 @@ function getKeys(){try{return JSON.parse(localStorage.getItem(LS_KEYS)||'[]').fi
 function getOllama(){return{url:(localStorage.getItem(LS_OURL)||'http://localhost:11434').replace(/\/$/,''),model:localStorage.getItem(LS_OMODEL)||'qwen2.5:1.5b-instruct'}}
 function setStatus(html){document.getElementById('engineStatus').innerHTML=html;}
 async function geminiText(key,prompt){
-  const r=await fetch('https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent',{method:'POST',headers:{'Content-Type':'application/json','x-goog-api-key':key},body:JSON.stringify({contents:[{parts:[{text:prompt}]}]})});
-  if(!r.ok){const e=new Error('gemini '+r.status);e.status=r.status;throw e;}
-  const j=await r.json();
-  const t=j&&j.candidates&&j.candidates[0]&&j.candidates[0].content&&j.candidates[0].content.parts&&j.candidates[0].content.parts[0]&&j.candidates[0].content.parts[0].text;
-  if(!t)throw new Error('empty response from ai');
-  return t;
+  const versions=['v1beta','v1'];
+  let lastErr=null;
+  for(const v of versions){
+    const r=await fetch('https://generativelanguage.googleapis.com/'+v+'/models/gemini-2.5-flash:generateContent',{method:'POST',headers:{'Content-Type':'application/json','x-goog-api-key':key},body:JSON.stringify({contents:[{parts:[{text:prompt}]}]})});
+    if(r.ok){
+      const j=await r.json();
+      const t=j&&j.candidates&&j.candidates[0]&&j.candidates[0].content&&j.candidates[0].content.parts&&j.candidates[0].content.parts[0]&&j.candidates[0].content.parts[0].text;
+      if(t)return t;
+      throw new Error('empty response from ai');
+    }
+    const e=new Error('gemini '+r.status);e.status=r.status;lastErr=e;
+    if(r.status!==404)break;
+  }
+  throw lastErr||new Error('gemini failed');
 }
 async function ollamaText(prompt){
   const o=getOllama();
@@ -498,22 +506,37 @@ function keepInfused(){
 
 /* ---------- settings ---------- */
 function saveKeys(){
-  const lines=document.getElementById('keyBox').value.split('\n').map(s=>s.trim()).filter(Boolean);
+  const lines=document.getElementById('keyBox').value.split(String.fromCharCode(10)).map(s=>s.trim()).filter(Boolean);
   localStorage.setItem(LS_KEYS,JSON.stringify(lines));
   document.getElementById('keyMsg').textContent=lines.length+' key(s) saved in this browser only.';
   refreshStatus();
 }
 async function testKeys(){
-  const keys=getKeys();
+  const box=document.getElementById('keyBox').value.split(String.fromCharCode(10)).map(s=>s.trim()).filter(Boolean);
+  if(box.length){localStorage.setItem(LS_KEYS,JSON.stringify(box));}
+  const keys=box.length?box:getKeys();
   if(!keys.length){document.getElementById('keyMsg').textContent='no keys saved yet.';return;}
-  document.getElementById('keyMsg').textContent='testing key #1…';
-  try{await geminiText(keys[0],'say ok');document.getElementById('keyMsg').textContent='key #1 works.';}
+  const k=keys[0];
+  const tag='key #1 ('+k.slice(0,3)+', '+k.length+' chars)';
+  document.getElementById('keyMsg').textContent='testing '+tag+'…';
+  try{await geminiText(k,'say ok');document.getElementById('keyMsg').textContent=tag+' works.';}
   catch(e){
     let why=e.message;
-    if(e.status===404)why='google does not recognise this key for gemini — it may be dead, or from another service. new gemini keys start with AQ. — make a fresh one in google ai studio.';
-    else if(e.status===400)why='google says this key is invalid — check for a typo or an extra space.';
+    if(e.status===404){
+      document.getElementById('keyMsg').textContent=tag+' failed: google answered 404. checking what this key can see…';
+      try{
+        const r=await fetch('https://generativelanguage.googleapis.com/v1beta/models',{headers:{'x-goog-api-key':k}});
+        if(!r.ok){why='the key itself is not accepted by google ('+r.status+'). it may be copied wrong, masked, or from another service — copy it with the copy button in ai studio, not by hand.';}
+        else{
+          const j=await r.json();
+          const names=(j.models||[]).map(m=>m.name.replace('models/','')).filter(n=>n.indexOf('flash')>-1);
+          why='the key works, but the model name is wrong. this key can see: '+(names.length?names.slice(0,6).join(', '):'no flash models')+'.';
+        }
+      }catch(err2){why='could not reach google to check the key.';}
+    }
+    else if(e.status===400)why='google says this key is invalid — copy it with the copy button in ai studio, not by hand.';
     else if(e.status===429)why='this key is out of quota right now — the router will use the next key, or ollama.';
-    document.getElementById('keyMsg').textContent='key #1 failed: '+why;
+    document.getElementById('keyMsg').textContent=tag+' failed: '+why;
   }
   refreshStatus();
 }
