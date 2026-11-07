@@ -386,7 +386,7 @@ function getKeys(){try{return JSON.parse(localStorage.getItem(LS_KEYS)||'[]').fi
 function getOllama(){return{url:(localStorage.getItem(LS_OURL)||'http://localhost:11434').replace(/\/$/,''),model:localStorage.getItem(LS_OMODEL)||'qwen2.5:1.5b-instruct'}}
 function setStatus(html){document.getElementById('engineStatus').innerHTML=html;}
 async function geminiText(key,prompt){
-  const r=await fetch('https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key='+encodeURIComponent(key),{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({contents:[{parts:[{text:prompt}]}]})});
+  const r=await fetch('https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent',{method:'POST',headers:{'Content-Type':'application/json','x-goog-api-key':key},body:JSON.stringify({contents:[{parts:[{text:prompt}]}]})});
   if(!r.ok){const e=new Error('gemini '+r.status);e.status=r.status;throw e;}
   const j=await r.json();
   const t=j&&j.candidates&&j.candidates[0]&&j.candidates[0].content&&j.candidates[0].content.parts&&j.candidates[0].content.parts[0]&&j.candidates[0].content.parts[0].text;
@@ -415,7 +415,7 @@ async function callAI(task,prompt){
     const imgKeys=keys;
     for(let i=0;i<imgKeys.length;i++){
       try{
-        const r=await fetch('https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash-image:generateContent?key='+encodeURIComponent(imgKeys[i]),{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({contents:[{parts:[{text:prompt}]}]})});
+        const r=await fetch('https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash-image:generateContent',{method:'POST',headers:{'Content-Type':'application/json','x-goog-api-key':imgKeys[i]},body:JSON.stringify({contents:[{parts:[{text:prompt}]}]})});
         if(!r.ok)continue;
         const j=await r.json();
         const parts=j&&j.candidates&&j.candidates[0]&&j.candidates[0].content&&j.candidates[0].content.parts||[];
@@ -510,7 +510,7 @@ async function testKeys(){
   try{await geminiText(keys[0],'say ok');document.getElementById('keyMsg').textContent='key #1 works.';}
   catch(e){
     let why=e.message;
-    if(e.status===404)why='google doesn\'t recognise this key for gemini — it's probably not a gemini key, or it's dead. a real gemini key starts with AIza. make a fresh one in google ai studio.';
+    if(e.status===404)why='google doesn\'t recognise this key for gemini — it's probably not a gemini key, or it's dead. new gemini keys start with AQ. — make a fresh one in google ai studio.';
     else if(e.status===400)why='google says this key is invalid — check for a typo or an extra space.';
     else if(e.status===429)why='this key is out of quota right now — the router will use the next key, or ollama.';
     document.getElementById('keyMsg').textContent='key #1 failed: '+why;
