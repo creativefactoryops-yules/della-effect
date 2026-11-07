@@ -510,7 +510,7 @@ async function testKeys(){
   try{await geminiText(keys[0],'say ok');document.getElementById('keyMsg').textContent='key #1 works.';}
   catch(e){
     let why=e.message;
-    if(e.status===404)why='google doesn\'t recognise this key for gemini — it's probably not a gemini key, or it's dead. new gemini keys start with AQ. — make a fresh one in google ai studio.';
+    if(e.status===404)why='google does not recognise this key for gemini — it may be dead, or from another service. new gemini keys start with AQ. — make a fresh one in google ai studio.';
     else if(e.status===400)why='google says this key is invalid — check for a typo or an extra space.';
     else if(e.status===429)why='this key is out of quota right now — the router will use the next key, or ollama.';
     document.getElementById('keyMsg').textContent='key #1 failed: '+why;
